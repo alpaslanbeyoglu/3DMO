@@ -3,3 +3,5 @@
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
+6:45:24 AM [vite] vite.config.ts changed, restarting server...
+6:45:24 AM [vite] server restarted.
