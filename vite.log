@@ -1,8 +1,6 @@
+9:53:45 AM [vite] (client) Re-optimizing dependencies because lockfile has changed
 
-  VITE v6.4.4  ready in 218 ms
+  VITE v6.4.4  ready in 1132 ms
 
   ➜  Local:   http://localhost:3000/
   ➜  Network: use --host to expose
-6:45:24 AM [vite] vite.config.ts changed, restarting server...
-6:45:24 AM [vite] server restarted.
-7:01:23 AM [vite] (client) page reload index.html
