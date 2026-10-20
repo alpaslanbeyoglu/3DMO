@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { CADEntity, Layer, ToolType, SnappingSettings, PluginManifest } from '../types/cad';
+import { CADEntity, Layer, ToolType, SnappingSettings, PluginManifest, SelectionMode, SelectedSubElement } from '../types/cad';
 
 interface CADState {
   activeTool: ToolType;
+  selectionMode: SelectionMode;
   selectedEntityIds: string[];
-  selectedSubElement: { entityId: string; subType: 'face' | 'edge' | 'vertex'; index: number } | null;
+  selectedSubElement: SelectedSubElement | null;
   entities: CADEntity[];
   layers: Layer[];
   activeLayerId: string;
@@ -14,26 +15,39 @@ interface CADState {
   customInspectorPanels: Array<{ id: string; title: string; render: React.ComponentType }>;
   commands: Record<string, (...args: any[]) => void>;
 
+  cursorCoords: { x: number; y: number; z: number };
+
   // Actions
   setActiveTool: (tool: ToolType) => void;
+  setSelectionMode: (mode: SelectionMode) => void;
+  setCursorCoords: (coords: { x: number; y: number; z: number }) => void;
   selectEntity: (id: string | null, multi?: boolean) => void;
-  selectSubElement: (sub: { entityId: string; subType: 'face' | 'edge' | 'vertex'; index: number } | null) => void;
+  selectSubElement: (sub: SelectedSubElement | null) => void;
   addEntity: (entity: Omit<CADEntity, 'id'>) => string;
   updateEntityParameters: (id: string, newParams: Record<string, any>) => void;
   deleteEntity: (id: string) => void;
+  duplicateEntity: (id: string) => void;
+  addLayer: (name: string, color?: string) => void;
+  removeLayer: (id: string) => void;
+  setActiveLayerId: (id: string) => void;
   toggleLayerVisibility: (layerId: string) => void;
+  toggleLayerLock: (layerId: string) => void;
   setSnappingSettings: (settings: Partial<SnappingSettings>) => void;
+  loadProject: (entities: CADEntity[], layers: Layer[]) => void;
+  clearAll: () => void;
 
   // Plugin architecture actions
   addActivePlugin: (manifest: PluginManifest) => void;
   removeActivePlugin: (id: string) => void;
   addCustomTool: (tool: { id: string; label: string; iconName?: string; action: () => void }) => void;
+  removeCustomTool: (id: string) => void;
   addCustomInspectorPanel: (panel: { id: string; title: string; render: React.ComponentType }) => void;
   registerCommand: (commandId: string, handler: (...args: any[]) => void) => void;
 }
 
 export const useCADStore = create<CADState>((set, get) => ({
   activeTool: 'select',
+  selectionMode: 'object',
   selectedEntityIds: [],
   selectedSubElement: null,
   entities: [
@@ -61,12 +75,16 @@ export const useCADStore = create<CADState>((set, get) => ({
     snapMidpoints: true,
     snapCenter: true,
   },
+  cursorCoords: { x: 0, y: 0, z: 0 },
   activePlugins: [],
   customTools: [],
   customInspectorPanels: [],
   commands: {},
 
   setActiveTool: (tool) => set({ activeTool: tool }),
+  setSelectionMode: (mode) => set({ selectionMode: mode }),
+
+  setCursorCoords: (coords) => set({ cursorCoords: coords }),
 
   selectEntity: (id, multi = false) => {
     if (!id) {
@@ -118,6 +136,48 @@ export const useCADStore = create<CADState>((set, get) => ({
     }));
   },
 
+  duplicateEntity: (id) => {
+    const state = get();
+    const source = state.entities.find((e) => e.id === id);
+    if (!source) return;
+    const newId = `entity-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const clone: CADEntity = {
+      ...source,
+      id: newId,
+      name: `${source.name} (Copy)`,
+      parameters: {
+        ...source.parameters,
+        posX: (source.parameters.posX ?? 0) + 5,
+        posY: source.parameters.posY ?? 0,
+        posZ: (source.parameters.posZ ?? 0) + 5,
+      },
+    };
+    set((s) => ({
+      entities: [...s.entities, clone],
+      selectedEntityIds: [newId],
+    }));
+  },
+
+  addLayer: (name, color = '#60a5fa') => {
+    const id = `layer-${Date.now()}`;
+    const newLayer: Layer = { id, name, color, visible: true, locked: false };
+    set((state) => ({
+      layers: [...state.layers, newLayer],
+      activeLayerId: id,
+    }));
+  },
+
+  removeLayer: (id) => {
+    if (id === 'default') return; // Cannot delete default layer
+    set((state) => ({
+      layers: state.layers.filter((l) => l.id !== id),
+      activeLayerId: state.activeLayerId === id ? 'default' : state.activeLayerId,
+      entities: state.entities.map((e) => e.layerId === id ? { ...e, layerId: 'default' } : e),
+    }));
+  },
+
+  setActiveLayerId: (id) => set({ activeLayerId: id }),
+
   toggleLayerVisibility: (layerId) => {
     set((state) => ({
       layers: state.layers.map((l) =>
@@ -126,10 +186,37 @@ export const useCADStore = create<CADState>((set, get) => ({
     }));
   },
 
+  toggleLayerLock: (layerId) => {
+    set((state) => ({
+      layers: state.layers.map((l) =>
+        l.id === layerId ? { ...l, locked: !l.locked } : l
+      ),
+    }));
+  },
+
   setSnappingSettings: (settings) => {
     set((state) => ({
       snapping: { ...state.snapping, ...settings },
     }));
+  },
+
+  loadProject: (entities, layers) => {
+    set({
+      entities,
+      layers: layers.length > 0 ? layers : [
+        { id: 'default', name: 'Default Layer', color: '#3b82f6', visible: true, locked: false }
+      ],
+      selectedEntityIds: entities.length > 0 ? [entities[0].id] : [],
+      selectedSubElement: null,
+    });
+  },
+
+  clearAll: () => {
+    set({
+      entities: [],
+      selectedEntityIds: [],
+      selectedSubElement: null,
+    });
   },
 
   addActivePlugin: (manifest) => {
@@ -144,6 +231,10 @@ export const useCADStore = create<CADState>((set, get) => ({
 
   addCustomTool: (tool) => {
     set((state) => ({ customTools: [...state.customTools, tool] }));
+  },
+
+  removeCustomTool: (id) => {
+    set((state) => ({ customTools: state.customTools.filter((t) => t.id !== id) }));
   },
 
   addCustomInspectorPanel: (panel) => {

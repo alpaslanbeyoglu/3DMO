@@ -1,6 +1,6 @@
-import { CADEntity } from '../types/cad';
+import { CADEntity, Layer } from '../types/cad';
 
-export function exportProjectJSON(entities: CADEntity[], layers: any[]): void {
+export function exportProjectJSON(entities: CADEntity[], layers: Layer[]): void {
   const data = {
     version: '1.0',
     app: '3DMO Parametric CAD',
@@ -22,6 +22,28 @@ export function exportProjectJSON(entities: CADEntity[], layers: any[]): void {
   URL.revokeObjectURL(url);
 }
 
+export function importProjectJSON(
+  file: File,
+  onSuccess: (entities: CADEntity[], layers: Layer[]) => void,
+  onError?: (err: string) => void
+): void {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const content = e.target?.result as string;
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.entities)) {
+        onSuccess(parsed.entities, parsed.layers || []);
+      } else {
+        onError?.('Invalid CAD project file format');
+      }
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to parse CAD file');
+    }
+  };
+  reader.readAsText(file);
+}
+
 export function exportToSTL(entities: CADEntity[]): void {
   let stlContent = 'solid 3DMO_Export\n';
 
@@ -31,15 +53,29 @@ export function exportToSTL(entities: CADEntity[]): void {
     const x = posX, y = posY, z = posZ;
     const w = width / 2, h = height / 2, d = depth / 2;
 
-    stlContent += `
-  facet normal 0 0 1
-    outer loop
-      vertex ${x - w} ${y - h} ${z + d}
-      vertex ${x + w} ${y - h} ${z + d}
-      vertex ${x + w} ${y + h} ${z + d}
-    endloop
-  endfacet
-`;
+    // Output box faces
+    const faces = [
+      // Top (+Y)
+      [[x - w, y + h, z - d], [x + w, y + h, z - d], [x + w, y + h, z + d]],
+      [[x - w, y + h, z - d], [x + w, y + h, z + d], [x - w, y + h, z + d]],
+      // Bottom (-Y)
+      [[x - w, y - h, z - d], [x + w, y - h, z + d], [x + w, y - h, z - d]],
+      [[x - w, y - h, z - d], [x - w, y - h, z + d], [x + w, y - h, z + d]],
+      // Front (+Z)
+      [[x - w, y - h, z + d], [x + w, y - h, z + d], [x + w, y + h, z + d]],
+      [[x - w, y - h, z + d], [x + w, y + h, z + d], [x - w, y + h, z + d]],
+      // Back (-Z)
+      [[x - w, y - h, z - d], [x + w, y + h, z - d], [x + w, y - h, z - d]],
+      [[x - w, y - h, z - d], [x - w, y + h, z - d], [x + w, y + h, z - d]],
+    ];
+
+    faces.forEach((triangle) => {
+      stlContent += `  facet normal 0 0 1\n    outer loop\n`;
+      triangle.forEach(([vx, vy, vz]) => {
+        stlContent += `      vertex ${vx.toFixed(4)} ${vy.toFixed(4)} ${vz.toFixed(4)}\n`;
+      });
+      stlContent += `    endloop\n  endfacet\n`;
+    });
   });
 
   stlContent += 'endsolid 3DMO_Export\n';
@@ -65,6 +101,9 @@ ENDSEC;
 DATA;\n`;
 
   let body = `#10 = ORGANIZATIONAL_PROJECT('3DMO Project','');\n`;
+  entities.forEach((ent, idx) => {
+    body += `#${100 + idx} = MANIFOLD_SOLID_BREP('${ent.name}',#${200 + idx});\n`;
+  });
   const footer = `ENDSEC;\nEND-ISO-10303-21;\n`;
 
   const stepContent = header + body + footer;

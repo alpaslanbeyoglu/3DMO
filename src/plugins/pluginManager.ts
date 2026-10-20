@@ -3,7 +3,7 @@ import { useCADStore } from '../store/cadStore';
 
 class PluginManager {
   private plugins: Map<string, Plugin> = new Map();
-  private registeredTools: Map<string, any> = new Map();
+  private pluginTools: Map<string, string[]> = new Map();
 
   public registerPlugin(plugin: Plugin) {
     if (this.plugins.has(plugin.manifest.id)) {
@@ -11,9 +11,12 @@ class PluginManager {
       return;
     }
 
+    const toolIds: string[] = [];
+    this.pluginTools.set(plugin.manifest.id, toolIds);
+
     const context: PluginContext = {
       addTool: (tool) => {
-        this.registeredTools.set(tool.id, tool);
+        toolIds.push(tool.id);
         useCADStore.getState().addCustomTool(tool);
       },
       addInspectorPanel: (panel) => {
@@ -46,13 +49,16 @@ class PluginManager {
       if (plugin.deactivate) {
         plugin.deactivate();
       }
+      const tools = this.pluginTools.get(id) || [];
+      tools.forEach((tId) => useCADStore.getState().removeCustomTool(tId));
+      this.pluginTools.delete(id);
       this.plugins.delete(id);
       useCADStore.getState().removeActivePlugin(id);
     }
   }
 
   public getPlugins() {
-    return Array.from(this.plugins.values()).map(p => p.manifest);
+    return Array.from(this.plugins.values()).map((p) => p.manifest);
   }
 }
 

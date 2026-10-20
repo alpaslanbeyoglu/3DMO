@@ -1,0 +1,5 @@
+{
+  "name": "3DMO - Parametric CAD Modeler",
+  "description": "Parametric 3D CAD modeling suite inspired by MoI 3D with multi-viewport editing, solid primitives, curve drawing, boolean operations, and plugin extensibility.",
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

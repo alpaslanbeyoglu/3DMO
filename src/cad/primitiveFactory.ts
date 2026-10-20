@@ -109,20 +109,52 @@ export function createConeEntity(params: Partial<ConeParameters>): Omit<CADEntit
   };
 }
 
+export interface TorusParameters {
+  radius: number;
+  tube: number;
+  posX: number;
+  posY: number;
+  posZ: number;
+}
+
+export function createTorusEntity(params: Partial<TorusParameters>): Omit<CADEntity, 'id'> {
+  return {
+    name: 'Torus Primitive',
+    type: 'solid',
+    subType: 'torus',
+    visible: true,
+    color: '#8b5cf6',
+    layerId: 'default',
+    parameters: {
+      radius: params.radius ?? 6,
+      tube: params.tube ?? 2,
+      posX: params.posX ?? 0,
+      posY: params.posY ?? 0,
+      posZ: params.posZ ?? 0,
+    },
+  };
+}
+
 export function create2DCurveEntity(
-  subType: 'line' | 'polyline' | 'rectangle' | 'circle',
-  params: CurveParameters
+  subType: 'line' | 'polyline' | 'rectangle' | 'circle' | 'arc',
+  params: CurveParameters & { radius?: number; width?: number; height?: number }
 ): Omit<CADEntity, 'id'> {
   return {
-    name: `${subType.toUpperCase()} Curve`,
+    name: `${subType.charAt(0).toUpperCase() + subType.slice(1)} Curve`,
     type: 'curve',
     subType,
     visible: true,
-    color: '#06b6d4',
+    color: '#38bdf8',
     layerId: 'default',
     parameters: {
-      points: params.points,
-      closed: params.closed ?? false,
+      points: params.points || [],
+      closed: params.closed ?? (subType === 'circle' || subType === 'rectangle'),
+      radius: params.radius,
+      width: params.width,
+      height: params.height,
+      posX: params.points?.[0]?.x ?? 0,
+      posY: params.points?.[0]?.y ?? 0,
+      posZ: params.points?.[0]?.z ?? 0,
     },
   };
 }

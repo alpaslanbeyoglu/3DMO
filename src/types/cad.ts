@@ -13,13 +13,29 @@ export type ToolType =
   | 'cylinder'
   | 'sphere'
   | 'cone'
+  | 'torus'
   | 'extrude'
   | 'revolve'
   | 'boolean_union'
   | 'boolean_difference'
   | 'boolean_intersection'
   | 'fillet'
-  | 'chamfer';
+  | 'chamfer'
+  | 'bevel';
+
+export type SelectionMode = 'object' | 'vertex' | 'edge' | 'face';
+
+export interface SelectedSubElement {
+  entityId: string;
+  subType: 'vertex' | 'edge' | 'face';
+  index: number;
+  data?: {
+    point?: Vector3D;
+    edgePoints?: [Vector3D, Vector3D];
+    faceNormal?: Vector3D;
+    faceVertices?: Vector3D[];
+  };
+}
 
 export type EntityType = 'curve' | 'solid';
 
